@@ -108,3 +108,49 @@ Tests failed: <Count>
 Execution status: <SUCCESS | FAILED_TESTS | FAILED_TIMEOUT | ...>
 Remaining risks: <Risks>
 ```
+
+---
+
+## Phase 06: Engineering Reporting and GitHub Integration
+
+### Part A: Switch Lifecycle Updates
+Publish concise notifications across all 8 workflow stages to keep team chat informed without notification spam:
+1. **Bug received**: Acknowledge issue and queue triage.
+2. **Investigation started**: Announce read-only code and test inspection.
+3. **Investigation completed**: Post structured 11-field diagnosis.
+4. **Approval requested**: Post human approval prompt with unique `APP-*` ID.
+5. **Approval received or rejected**: Announce decision and execution gate status.
+6. **Fix implementation started**: Announce branch checkout and targeted file patches.
+7. **Tests completed**: Announce automated test results and branch status.
+8. **Final report published**: Publish comprehensive engineering summary.
+
+### Part B: GitHub Integration & Guardrails
+- **Issues**: Create tracking issue with reproduction context and Switch room link.
+- **Pull Requests**: Open pull request for human developer review with test results.
+- **Strict Invariants**:
+  - Secure token handling (never expose in logs, exceptions, or reports).
+  - Never push to `main` or `master`.
+  - Never automatically merge pull requests.
+  - Require explicit human approval before any external GitHub action.
+  - Offline fallback: If unconfigured, prioritize Switch reporting gracefully.
+
+### Part C: Structured Final Engineering Report Format
+
+```text
+Issue ID: <e.g. DF-001>
+Approval ID: <e.g. APP-DF-001-A1B2C3>
+Description: <Problem summary>
+Root cause: <Root cause>
+Proposed solution: <Proposed solution>
+Implemented solution: <Implemented changes>
+Files changed: <Files>
+Git branch: <Branch>
+Tests executed: <Count>
+Tests passed: <Count>
+Tests failed: <Count>
+Execution status: <SUCCESS | FAILED_TESTS | ...>
+Remaining risks: <Risks>
+GitHub issue: <URL or None>
+GitHub PR: <URL or None>
+```
+

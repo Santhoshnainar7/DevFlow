@@ -41,6 +41,12 @@ class Settings(BaseModel):
     SWITCH_AGENT_ID: Optional[str] = None
     DEVFLOW_AGENT_NAME: str = "devflow"
 
+    # GitHub integration
+    GITHUB_TOKEN: Optional[str] = None
+    GITHUB_REPO: Optional[str] = None
+    GITHUB_API_URL: str = "https://api.github.com"
+    ENABLE_GITHUB_INTEGRATION: bool = False
+
     # Security & Execution limits
     DEVFLOW_APPROVED_USERS: List[str] = Field(default_factory=list)
     DEVFLOW_APPROVAL_TIMEOUT_SECONDS: int = 300

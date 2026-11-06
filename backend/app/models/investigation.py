@@ -75,6 +75,8 @@ class InvestigationRequest(BaseModel):
     description: str
     repository_path: Optional[str] = None
     attempt_reproduction: bool = True
+    room_id: Optional[str] = None
+    user_id: Optional[str] = None
 
 
 class InvestigationReport(BaseModel):

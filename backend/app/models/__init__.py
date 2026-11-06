@@ -22,6 +22,12 @@ from app.models.investigation import (
     ReproductionResult,
     Severity,
 )
+from app.models.reporting import (
+    EngineeringReport,
+    GitHubReference,
+    StageUpdate,
+    WorkflowStage,
+)
 
 __all__ = [
     "HealthResponse",
@@ -41,4 +47,8 @@ __all__ = [
     "FixPatch",
     "FixPlan",
     "ExecutionReport",
+    "WorkflowStage",
+    "StageUpdate",
+    "GitHubReference",
+    "EngineeringReport",
 ]

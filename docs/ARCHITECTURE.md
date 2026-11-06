@@ -1,247 +1,152 @@
-# DevFlow — System Architecture
+# DevFlow System Architecture
 
-> **Phase**: 00 — Design only. No implementation.
-> **Date**: 2026-11-05
-> **Goal**: Simplest technically valid architecture for a four-day hackathon.
+## 1. Executive Architecture Overview
 
----
+DevFlow is an autonomous, human-in-the-loop software engineering agent built for the SandboxAQ "Flip the Switch" Hackathon. It integrates team chat platforms (Switch Console and Discord) directly with version control systems and local repositories to autonomously investigate bug reports, synthesize targeted patches, enforce a cryptographically secure approval gate, and run automated verification suites.
 
-## 1. What DevFlow Does
+```mermaid
+flowchart TD
+    subgraph ChatPlatforms["1. Collaboration Tier (Switch & Discord)"]
+        A1["Developer in Discord / Switch"] -->|"@devflow bug report"| A2["Switch Local Server (v0.40.1)"]
+        A2 -->|"REST & SSE Gateway"| A3["Switch Bot Connector"]
+    end
 
-DevFlow is a **Switch-connected autonomous bug investigation and fix agent** that performs this exact workflow:
+    subgraph CoreAgent["2. DevFlow Autonomous Backend (FastAPI)"]
+        B1["TriageWorkflow State Machine"]
+        B2["Bug Classifier & AST Inspector"]
+        B3["Read-Only Reproduction Runner"]
+        B4["Approval Manager (Gatekeeper)"]
+        B5["Fix Executor (Git Branch Isolation)"]
+        B6["Controlled Test Runner (Pytest Subprocess)"]
+        B7["Switch & Engineering Reporter"]
+    end
 
-1. Receive a bug report in a Switch-connected team chat room.
-2. Acknowledge the report immediately.
-3. Inspect the connected local Git repository (read-only).
-4. Identify affected files.
-5. Investigate the root cause using Gemini.
-6. Prepare a proposed fix.
-7. Post the proposal to chat and **wait for explicit human approval**.
-8. Implement **only** approved fixes, on a dedicated branch.
-9. Run automated tests.
-10. Report actual test results back to chat.
+    subgraph SecurityGate["3. Human Authorization Boundary"]
+        G1{"Human Developer Decision"}
+        G2["Allowlist: DEVFLOW_APPROVED_USERS"]
+        G3["Single-Use Token: EXEC-<id>-<nonce>"]
+    end
 
----
+    subgraph VersionControl["4. Workspace & Repository Tier"]
+        C1["Isolated Git Branch: devflow/fix-*"]
+        C2["demo_repository/ (Target App)"]
+        C3["GitHub REST API v3 (PRs & Issues)"]
+    end
 
-## 2. Architecture Diagram
-
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                    TEAM CHAT (Mattermost)                         │
-│  Human: "@devflow  login returns 200 for wrong passwords"         │
-│  Human: "yes"  ← approval                                        │
-│  DevFlow: "7/7 tests passed. Fix on branch devflow/fix-20261105." │
-└──────────────────────────┬────────────────────────────────────────┘
-                           │  Switch routes via SSE event stream
-                           ▼
-┌───────────────────────────────────────────────────────────────────┐
-│          SWITCH LOCAL SERVER  (Docker containers)                 │
-│          Bundled Mattermost + Switch coordination layer           │
-└──────────────────────────┬────────────────────────────────────────┘
-                           │  GET /v1/agent/events  (SSE)
-                           │  POST /v1/rooms/{id}/messages  (HTTP)
-                           ▼
-┌───────────────────────────────────────────────────────────────────┐
-│               DEVFLOW AGENT  (FastAPI + Python)                   │
-│                                                                   │
-│  ┌─────────────────┐   ┌────────────────┐   ┌─────────────────┐  │
-│  │  SSE Listener   │   │  Workflow       │   │  Approval Gate  │  │
-│  │  (httpx + SSE)  │──▶│  State Machine  │──▶│  (blocks until  │  │
-│  │                 │   │  (10 states)    │   │   human says    │  │
-│  └─────────────────┘   └───────┬────────┘   │   yes / no)     │  │
-│                                │            └─────────────────┘  │
-│  ┌────────────────┐    ┌───────▼────────┐   ┌─────────────────┐  │
-│  │  Git Reader    │    │  Gemini LLM    │   │  Test Runner    │  │
-│  │  (read-only    │◀───│  (google-      │   │  (pytest        │  │
-│  │   subprocess)  │    │  generativeai) │   │   subprocess,   │  │
-│  └────────────────┘    └────────────────┘   │   60s timeout)  │  │
-│                                             └─────────────────┘  │
-└───────────────────────────────────────────────────────────────────┘
-                           │  read / write (approved only, fix branch)
-                           ▼
-┌───────────────────────────────────────────────────────────────────┐
-│          GIT REPOSITORY  (C:\Users\santh\DevFlow\sample_app)      │
-└───────────────────────────────────────────────────────────────────┘
+    A3 -->|"Dispatch Triage"| B1
+    B1 -->|"1. Parse & Categorize"| B2
+    B2 -->|"2. Read-only AST Scan"| C2
+    B2 -->|"3. Reproduction Probe"| B3
+    B3 -->|"4. 11-Field Diagnosis"| B7
+    B7 -->|"Stage 3 & 4 Prompts"| A2
+    
+    A1 -->|"APPROVE <id>"| G1
+    G1 -->|"Validate Identity"| G2
+    G2 -->|"Issue Single-Use Token"| G3
+    G3 -->|"Unlock Execution Gate"| B4
+    
+    B4 -->|"Initialize Workspace"| B5
+    B5 -->|"Checkout Working Branch"| C1
+    B5 -->|"Apply Patch"| C1
+    B5 -->|"Execute Tests"| B6
+    B6 -->|"Subprocess with Timeout"| C2
+    
+    B6 -->|"Verify Results"| B5
+    B5 -->|"Build Summary"| B7
+    B7 -->|"Stage 8 Final Report"| A2
+    B7 -->|"Optional PR Opening"| C3
 ```
 
 ---
 
-## 3. Component Descriptions
+## 2. Core Subsystems
 
-### 3.1 SSE Listener
+### 2.1 Collaboration & Messaging Layer
+- **Switch Console (`v0.40.1`)**: Serves as the team collaboration hub, running on `127.0.0.1:52774`.
+- **Discord Gateway Bridge**: Bridged via Switch's native Discord connector (`#bug-reports`), providing bi-directional webhook and websocket communications directly into developer chat rooms.
+- **Codex Agent Worker**: Configured with autonomous reasoning instructions (`AGENTS.md`) to guide tool execution and report drafting.
 
-- Runs as a **background async task** using `httpx` with SSE support.
-- Connects to `GET /v1/agent/events` on the Switch local server.
-- Authenticates via `Authorization: Bearer <SWITCH_AGENT_TOKEN>`.
-- Parses incoming `message.posted` events.
-- Filters: only process messages where `author_type == "human"` and body contains `@devflow`.
-- Dispatches the message payload to the Workflow Engine.
+### 2.2 Bug Investigation Engine (Phase 03)
+The investigation engine conducts rigorous, read-only analysis without making any modifications to disk:
+1. **Classifier (`BugClassifier`)**: Categorizes bugs into 8 official categories (`Authentication`, `API failures`, `Database errors`, `Frontend issues`, `Validation errors`, `Performance problems`, `Dependency issues`, `Unknown`) using heuristic pattern recognition and severity scoring.
+2. **Repository Inspector (`RepositoryInspector`)**: Uses Python's native `ast` module to extract classes, functions, and imports from genuine repository files. Enforces directory traversal barriers to block unauthorized access outside the repository root.
+3. **Reproduction Runner (`ReproductionRunner`)**: Probes existing test suites (`pytest`) in read-only mode to capture real stack traces and exit codes. Distinguishes confirmed facts from hypotheses.
 
-### 3.2 Workflow State Machine
+### 2.3 Human Approval Gate (Phase 04)
+A strict, server-side authorization barrier between diagnosis and code modification:
+- **Zero-Write Invariant**: Not a single file can be created, modified, or deleted without a valid execution token.
+- **Allowlist RBAC**: Validates sender against `DEVFLOW_APPROVED_USERS`. Chat messages from unauthorized accounts are strictly blocked.
+- **Single-Use Execution Tokens**: Cryptographically random tokens (`EXEC-<issue_id>-<nonce>`) valid for 15 minutes. Automatically consumed upon branch creation to prevent replay attacks.
+- **Persistent Audit Log**: All approvals, rejections, cancellations, and timestamps are persisted to `data/approvals.json`.
 
-The core orchestrator. A linear state machine with these states:
+### 2.4 Controlled Code Fixing Engine (Phase 05)
+1. **Pre-Flight Repository Verification**: Inspects `git status` to ensure working directory is clean before modifying files.
+2. **Branch Isolation**: Never modifies `main` or `master` directly. Checkouts an isolated branch: `devflow/fix-<issue_id>-<timestamp>`.
+3. **Workspace Boundary Enforcement**: Validates that all target paths remain strictly inside the authorized repository workspace.
+4. **Controlled Subprocess Execution**: Pytest runs with explicit argument arrays, `shell=False`, and hard execution timeouts (default: 30s) to prevent hang conditions.
+5. **Atomic Auto-Rollback**: If tests fail or timeout occurs, all uncommitted changes on the fix branch are automatically reverted, preserving the clean state of the target application.
 
-| State | Description |
-|-------|-------------|
-| `IDLE` | Waiting for a message |
-| `ACKNOWLEDGED` | Sent acknowledgement to chat |
-| `INVESTIGATING` | Running read-only Git inspection |
-| `ANALYSING` | Sending context to Gemini LLM |
-| `PROPOSING` | Posting proposed fix to chat |
-| `AWAITING_APPROVAL` | Blocked; waiting for `yes`/`no` reply |
-| `IMPLEMENTING` | Writing the approved fix on a fix branch |
-| `TESTING` | Running `pytest` subprocess |
-| `REPORTING` | Posting test results to chat |
-| `COMPLETE` | Workflow finished |
-| `CANCELLED` | Rejected or timed out |
+### 2.5 Reporting & Version Control Integration (Phase 06)
+- **8-Stage Switch Lifecycle**: Dispatches progressive updates (Bug received, Investigation started, Investigation completed, Approval requested, Approval decided, Fix started, Tests completed, Final summary).
+- **GitHub Integration**: Direct REST API v3 client (`httpx`). Opens pull requests for human review and creates tracking issues with Switch backlinks. Rejects `main` as head branch and includes token masking and offline fallback.
 
-State is keyed by `room_id`. Only one active workflow per room at a time.
+---
 
-### 3.3 Git Reader (Read-Only Investigation)
+## 3. End-to-End Sequence Diagram
 
-- Calls the Git CLI via `subprocess.run()` with **list arguments only** (`shell=False`).
-- Strictly allowlisted commands:
-  - `git log --oneline -n 20`
-  - `git status`
-  - `git show <filepath>`
-  - `git diff HEAD`
-  - File reads via Python `open(path, 'r')`.
-- **No write operations during investigation**: no `git commit`, no `git checkout`, no file writes.
-- During implementation: writes confined to the fix branch only, after verified human approval.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as Developer (Chat)
+    participant Switch as Switch / Discord
+    participant Engine as DevFlow Engine
+    participant Gate as Approval Gate
+    participant Git as Git & Pytest Runner
+    participant GH as GitHub API
 
-### 3.4 Gemini LLM Client
+    Dev->>Switch: "Bug: login returns 500 on bad password"
+    Switch->>Engine: Dispatch InvestigationRequest
+    Note over Engine: Stage 1: Bug Received
+    Note over Engine: Stage 2: Investigation Started
+    Engine->>Git: Read AST & Inspect test_auth.py
+    Git-->>Engine: AST Symbols & Test Results
+    Note over Engine: Stage 3: Investigation Completed
+    Engine->>Switch: Post 11-Field Investigation Report
+    Note over Engine: Stage 4: Approval Requested
+    Engine->>Switch: Post APPROVE/REJECT Prompt (APP-DF-001)
 
-- Uses `google-generativeai` Python SDK.
-- Model: `gemini-2.5-flash` (highest free-tier quota; fast).
-- API key: `GEMINI_API_KEY` environment variable.
-- Responsibilities:
-  - Analyse git diff, file content, error messages.
-  - Identify root cause.
-  - Draft a minimal, targeted code fix.
-  - Write a plain-English explanation for the developer.
-- Gemini **does not execute code** — it only produces text proposals.
+    Dev->>Switch: "APPROVE DF-001"
+    Switch->>Gate: Validate user & issue ID
+    Gate->>Gate: Check DEVFLOW_APPROVED_USERS & Expiration
+    Gate-->>Engine: Grant EXEC-DF-001 Token
+    Note over Engine: Stage 5: Approval Decided
 
-### 3.5 Approval Gate
+    Engine->>Git: Consume Token & Verify git status
+    Note over Engine: Stage 6: Fix Started
+    Git->>Git: Checkout devflow/fix-df-001 branch
+    Git->>Git: Apply patch to app/routers/auth.py
+    Note over Engine: Stage 7: Tests Completed
+    Git->>Git: Run pytest tests/test_auth.py
+    Git-->>Engine: 7/7 Passed (Exit Code 0)
 
-- After posting a fix proposal, state → `AWAITING_APPROVAL`.
-- Monitors the same `room_id` for a follow-up message.
-- **Only messages from authorized users** (configured in `DEVFLOW_APPROVED_USERS`) are accepted.
-- Recognized commands: `yes`, `approve`, `no`, `reject`, `cancel`.
-- Auto-cancel after `DEVFLOW_APPROVAL_TIMEOUT_SECONDS` (default: 300 s) with no response.
-- Stale approvals (after timeout) are discarded.
-
-### 3.6 Test Runner
-
-- Launches `pytest` as a **subprocess** with a hard timeout.
-- Working directory confined to `sample_app/`.
-- Arguments passed as a **list**, never a shell string — no injection risk.
-- stdout/stderr captured and posted to chat.
-
-```python
-result = subprocess.run(
-    ["python", "-m", "pytest", "tests/", "-v", "--tb=short"],
-    capture_output=True,
-    text=True,
-    timeout=60,
-    cwd="C:/Users/santh/DevFlow/sample_app"
-)
+    Note over Engine: Stage 8: Final Report Published
+    Engine->>GH: Create PR devflow/fix-df-001 -> main
+    GH-->>Engine: PR #42 Created
+    Engine->>Switch: Publish Final Engineering Report with PR Link
+    Switch-->>Dev: Review completed engineering summary
 ```
 
 ---
 
 ## 4. Technology Stack
 
-| Layer | Technology | Reason |
-|-------|-----------|--------|
-| Agent runtime | **Python 3.14** | Already installed; same as sample app |
-| HTTP client / SSE | **httpx + sseclient-py** | Async-compatible; supports SSE streams |
-| HTTP server (optional) | **FastAPI + Uvicorn** | Consistent with sample app stack |
-| LLM provider | **Google Gemini 2.5 Flash** | Free API key; highest quota tier |
-| Gemini SDK | `google-generativeai` | Official Python SDK |
-| Git operations | **Git CLI subprocess** | No extra library; already installed |
-| Test execution | **pytest subprocess** | Standard tool already in stack |
-| State management | **In-memory dict keyed by `room_id`** | Sufficient for single-node hackathon demo |
-| Credential storage | **`.env` file + `python-dotenv`** | Standard; never committed |
-| Team chat | **Bundled Mattermost** via Switch Console | No external platform account needed |
-
----
-
-## 5. Message Flow Sequence
-
-```
-User (Mattermost) → Switch → DevFlow SSE Listener
-  DevFlow: "Acknowledged. Investigating..."
-  DevFlow reads: git log, git show auth_service.py  [READ ONLY]
-  DevFlow calls: Gemini API → root cause + fix draft
-  DevFlow: "Root cause: inverted equality check on line 24.
-            Proposed fix: [code diff]
-            Reply 'yes' to approve or 'no' to cancel."
-
-User: "yes"
-  Switch → DevFlow SSE Listener
-  DevFlow: checkout new branch devflow/fix-20261105
-  DevFlow: applies fix
-  DevFlow: runs pytest (subprocess, 60s timeout)
-  DevFlow: "Tests passed: 7/7. Fix committed to devflow/fix-20261105."
-```
-
----
-
-## 6. File Structure (DevFlow Agent)
-
-```
-C:\Users\santh\DevFlow\
-├── devflow/
-│   ├── __init__.py
-│   ├── agent.py           # Main entry point; starts SSE listener loop
-│   ├── workflow.py        # 10-state machine
-│   ├── git_reader.py      # Read-only git subprocess wrappers
-│   ├── llm_client.py      # Gemini API calls
-│   ├── approval_gate.py   # Per-room approval tracking + timeout
-│   ├── test_runner.py     # pytest subprocess with timeout
-│   ├── switch_client.py   # HTTP POST to Switch (post messages to rooms)
-│   └── config.py          # Settings from .env
-├── sample_app/            # The buggy FastAPI app DevFlow investigates
-├── docs/                  # This documentation
-├── .env.example           # Template — copy to .env, never commit .env
-├── .gitignore             # Must include .env, .venv
-├── requirements.txt
-└── README.md
-```
-
----
-
-## 7. Environment Variables
-
-```bash
-# .env.example — copy to .env; never commit .env
-GEMINI_API_KEY=your_google_ai_studio_key_here
-SWITCH_AGENT_TOKEN=your_switch_bearer_token_here
-SWITCH_SERVER_URL=http://localhost:3000
-DEVFLOW_AGENT_NAME=devflow
-DEVFLOW_APPROVED_USERS=your_mattermost_username
-DEVFLOW_APPROVAL_TIMEOUT_SECONDS=300
-DEVFLOW_REPO_PATH=C:/Users/santh/DevFlow
-DEVFLOW_TEST_TIMEOUT_SECONDS=60
-DEVFLOW_FIX_BRANCH_PREFIX=devflow/fix
-```
-
----
-
-## 8. Recommended Coding Agent
-
-**→ DevFlow itself — a custom Python agent.**
-
-Do **not** use OpenCode, Claude Code, or Aider as the primary agent. Build DevFlow as a first-class Switch agent using Python. Reasons:
-
-| Factor | Custom Python | OpenCode | Claude Code |
-|--------|---------------|----------|-------------|
-| Approval gate control | ✅ Full | ❌ Not built-in | ❌ Not built-in |
-| State machine | ✅ Full | ❌ Not built-in | ❌ Not built-in |
-| Gemini support | ✅ Direct SDK | ✅ Via config | ❌ Anthropic only |
-| Auth required | Google API key only | Google API key | Anthropic subscription |
-| Switch protocol | Implement once | Wrapper needed | Wrapper needed |
-| Hackathon setup time | Low | Medium | High |
-
-**OpenCode** is a good fallback if Gemini LLM calls are needed inside a richer coding TUI, but for DevFlow's structured workflow, a custom agent is simpler and faster to build in four days.
-
+| Layer | Technology | Purpose |
+|---|---|---|
+| **Language** | Python 3.14.3 | Core runtime for backend, parser, and agents |
+| **API Framework** | FastAPI 0.115.8 / Starlette | High-performance asynchronous REST API |
+| **Data Validation** | Pydantic v2.14.1 | Schema validation, typing, and serialization |
+| **Web Server** | Uvicorn 0.34.0 | ASGI web server |
+| **HTTP Client** | HTTPX 0.28.1 | Asynchronous HTTP client for GitHub REST API |
+| **Test Runner** | Pytest 9.2.0 | Automated unit, regression, and scenario testing |
+| **Messaging & Agents** | Switch Console v0.40.1 | Team chat, agent orchestration, and Discord gateway |
+| **Target App** | FastAPI + SQLite (Demo Repo) | Baseline sample application for bug scenarios |

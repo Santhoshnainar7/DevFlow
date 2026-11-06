@@ -28,9 +28,13 @@ from app.models.approval import (
 from app.models.execution import ExecutionReport, FixPlan
 from app.models.health import HealthResponse
 from app.models.investigation import InvestigationReport, InvestigationRequest
+from app.models.reporting import EngineeringReport, GitHubReference, StageUpdate
 from app.services.approval_manager import approval_manager
+from app.services.engineering_reporter import engineering_reporter
 from app.services.fix_executor import FixExecutor
+from app.services.github_service import github_service
 from app.services.investigation_engine import BugInvestigationEngine
+from app.services.switch_reporter import switch_reporter
 
 logger = get_logger("main")
 
@@ -203,6 +207,65 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
         """
         report = executor.execute_fix(plan)
         return Response(content=report.to_formatted_report(), media_type="text/plain")
+
+    # -----------------------------------------------------------------------
+    # Engineering Reporting & GitHub Integration Endpoints
+    # -----------------------------------------------------------------------
+    @app.get(
+        "/api/v1/reporting/stages/{issue_id}",
+        response_model=list[StageUpdate],
+        summary="Get Workflow Stage Updates",
+        tags=["Reporting"],
+    )
+    async def get_stage_updates(issue_id: str) -> list[StageUpdate]:
+        """Retrieves all chronological stage notifications recorded for an issue."""
+        return switch_reporter.get_updates(issue_id)
+
+    @app.post(
+        "/api/v1/github/create-issue",
+        response_model=GitHubReference,
+        summary="Create GitHub Issue",
+        tags=["GitHub"],
+    )
+    async def create_github_issue(
+        issue_id: str,
+        title: str,
+        body: str,
+        room_id: str | None = None,
+        is_approved: bool = True,
+    ) -> GitHubReference:
+        """Creates a tracking issue on GitHub for an approved bug report."""
+        return github_service.create_issue(
+            issue_id=issue_id,
+            title=title,
+            body=body,
+            switch_room=room_id,
+            is_approved=is_approved,
+        )
+
+    @app.post(
+        "/api/v1/github/create-pr",
+        response_model=GitHubReference,
+        summary="Create GitHub Pull Request",
+        tags=["GitHub"],
+    )
+    async def create_github_pr(
+        issue_id: str,
+        title: str,
+        head_branch: str,
+        body: str,
+        base_branch: str = "main",
+        is_approved: bool = True,
+    ) -> GitHubReference:
+        """Prepares a pull request for human developer review."""
+        return github_service.create_pull_request(
+            issue_id=issue_id,
+            title=title,
+            head_branch=head_branch,
+            body=body,
+            base_branch=base_branch,
+            is_approved=is_approved,
+        )
 
     return app
 
