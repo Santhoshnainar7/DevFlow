@@ -38,6 +38,7 @@ class Settings(BaseModel):
     # Switch agent platform connection
     SWITCH_AGENT_TOKEN: Optional[str] = None
     SWITCH_SERVER_URL: str = "http://localhost:3000"
+    SWITCH_AGENT_ID: Optional[str] = None
     DEVFLOW_AGENT_NAME: str = "devflow"
 
     # Security & Execution limits

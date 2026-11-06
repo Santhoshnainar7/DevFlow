@@ -179,30 +179,22 @@ git commit -m "Phase 01: sample FastAPI login app — green test baseline (7/7)"
 
 ---
 
-## Phase 02 — DevFlow Agent Core (~6 hours)
+## Phase 02 — SWITCH AND CODING AGENT INTEGRATION (Status: COMPLETE ✅)
 
-**Goal**: Build the DevFlow Python agent with SSE listener, 10-state workflow, and Gemini integration. Test locally without Switch.
+**Goal**: Connect DevFlow to the actual Switch collaboration environment and verify bidirectional communication in `#bug-reports`.
 
-```
-devflow/
-├── agent.py           # Starts SSE listener loop; dispatches to workflow
-├── workflow.py        # 10-state machine
-├── git_reader.py      # Read-only git subprocess wrappers (allowlist enforced)
-├── llm_client.py      # Gemini API calls (google-generativeai)
-├── approval_gate.py   # Per-room approval tracking + timeout
-├── test_runner.py     # pytest subprocess (shell=False, timeout=60)
-├── switch_client.py   # HTTP POST to Switch rooms
-└── config.py          # Pydantic settings from .env
-```
-
-Local test without Switch (simulate a Switch event via curl):
-```powershell
-# Start agent
-python -m devflow.agent
-
-# In another terminal — simulate incoming Switch SSE event
-# (agent logs should show acknowledgement and investigation steps)
-```
+- [x] **Switch Local Environment**: Switch Console v0.31.0 active, local coordination server running at `http://127.0.0.1:52774`.
+- [x] **Supported Coding Agent**: Codex agent configured for `devflow` working in `C:\Users\santh\DevFlow`.
+- [x] **Team Engineering Room**: Public Mattermost room `#bug-reports` created with developer, `switch-buddy`, and `devflow`.
+- [x] **Agent Identity & System Instructions**: Triage instructions configured with auto mode on, bypass off, and strict read-only repository inspection.
+- [x] **Environment Configuration**: Updated `.env` with `SWITCH_AGENT_TOKEN`, `SWITCH_SERVER_URL`, and `SWITCH_AGENT_ID`.
+- [x] **Documentation**: Created `docs/SWITCH_SETUP.md` capturing architecture, settings, and triage instructions.
+- [x] **Verification**: All test cases verified in `#bug-reports`:
+  - Normal message received and answered.
+  - Complete bug report received, `DF-001` assigned, read-only code inspection performed, no files modified.
+  - Missing field questions prompted when necessary.
+  - Second separate bug report triaged with unique tracking.
+  - Verified `demo_repository/` has zero modifications (`git status` clean).
 
 ---
 
