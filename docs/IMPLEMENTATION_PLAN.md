@@ -219,14 +219,26 @@ git commit -m "Phase 01: sample FastAPI login app — green test baseline (7/7)"
 
 ---
 
-## Phase 04 — Full Workflow End-to-End (~3 hours)
+## Phase 04 — HUMAN APPROVAL WORKFLOW (Status: COMPLETE ✅)
 
-**Goal**: Wire up the approval gate and test runner. Run Bug 01 through the complete 10-step workflow.
+**Goal**: Create a reliable, server-side human approval mechanism between bug investigation and code modification.
 
-1. Post bug report in Mattermost.
-2. DevFlow investigates → posts proposed fix.
-3. Developer replies `yes`.
-4. DevFlow applies fix → runs pytest → reports results.
+- [x] **Approval Data Models (`backend/app/models/approval.py`)**: `ApprovalDecision`, `ApprovalRequest` with `.to_switch_prompt()`, `ApprovalActionPayload`, and `ApprovalValidationResult`.
+- [x] **Persistent Approval Service (`backend/app/services/approval_manager.py`)**: Atomic JSON persistence (`data/approvals.json`), thread-safe concurrency, allowlist authorization (`DEVFLOW_APPROVED_USERS`), and single-use execution tokens.
+- [x] **Code Modification Gatekeeper (`backend/app/services/modification_gate.py`)**: Enforces that zero files or branches can be modified without a verified, unconsumed execution token.
+- [x] **Triage Workflow Integration (`backend/app/workflows/triage.py`)**: Integrated `publish_for_approval` and `process_approval` with workflow state transitions (`AWAITING_APPROVAL`, `APPROVED`, `REJECTED`).
+- [x] **Backend API Endpoints (`backend/app/main.py`)**: Exposed `POST /api/v1/approvals/decide` and `GET /api/v1/approvals/{issue_id}`.
+- [x] **Agent System Instructions (`AGENTS.md`)**: Documented Phase 04 instructions for Switch team rooms.
+- [x] **All 8 Required Test Cases Verified (`tests/test_approval.py`)**:
+  - Valid approval (authorized user, explicit command -> execution token granted)
+  - Invalid approval (conversational / ambiguous syntax rejected)
+  - Unauthorized approval (users not in allowlist rejected)
+  - Rejected proposal (marked REJECTED, execution blocked)
+  - Duplicate approval (already-approved proposals and consumed tokens blocked)
+  - Expired approval (proposals past TTL rejected)
+  - Wrong issue ID (issue mismatch rejected)
+  - Approval after cancellation (cancelled issues blocked)
+- [x] **Documentation**: Created `docs/HUMAN_APPROVAL_WORKFLOW.md`.
 
 ---
 

@@ -40,12 +40,43 @@ Testing strategy: <How to verify the fix with tests>
 Potential risks: <Side effects, security implications, or edge cases>
 ```
 
-### Strict Rules:
-- **Inspect actual repository files.** Never invent filenames, modules, or functions.
-- **Distinguish confirmed findings from hypotheses.**
-- **Do not modify source files during investigation.** All investigation is strictly read-only.
-- **Do not claim successful reproduction unless it actually occurred.**
-- **Do not generate fake stack traces.**
-- **Handle missing repositories and unavailable files gracefully.**
-- **Do not implement fixes yet.** Only output the investigation report and await human approval.
+---
 
+## Phase 04: Human Approval Workflow
+
+After completing an investigation and proposing a fix:
+
+1. **Publish** the proposal in team chat with a generated approval request:
+
+```text
+Investigation completed.
+
+Issue: <Issue ID, e.g. DF-001>
+Root cause: <Concise root cause summary>
+Affected file: <Affected files>
+
+Proposed fix:
+<Actionable fix description>
+
+Testing plan:
+- <Test 1>
+- <Test 2>
+- <Test 3>
+
+Reply with:
+
+APPROVE <Issue ID>
+or
+REJECT <Issue ID>
+```
+
+2. **Wait** for an explicit response from an authorized developer in `DEVFLOW_APPROVED_USERS`.
+3. **Validate** the command server-side:
+   - Command must be explicit (`APPROVE <ID>` or `REJECT <ID>`).
+   - Requester must be authorized.
+   - Request must not be expired, duplicate, or cancelled.
+4. **Enforce Execution Gate**:
+   - If `APPROVE`: Validate approval, generate single-use execution token, and notify the room that approval was granted.
+   - If `REJECT`: Mark proposal rejected, record reason, and do NOT modify any files.
+   - If unauthorized / invalid / duplicate / expired: Report the security rejection and block execution.
+   - **Zero file modifications may occur without server-side approval validation.**

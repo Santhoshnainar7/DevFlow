@@ -1,5 +1,11 @@
 """Pydantic data models and schemas."""
 
+from app.models.approval import (
+    ApprovalActionPayload,
+    ApprovalDecision,
+    ApprovalRequest,
+    ApprovalValidationResult,
+)
 from app.models.health import ApiResponse, HealthResponse
 from app.models.investigation import (
     BugCategory,
@@ -21,4 +27,8 @@ __all__ = [
     "ReproductionResult",
     "InvestigationRequest",
     "InvestigationReport",
+    "ApprovalDecision",
+    "ApprovalRequest",
+    "ApprovalActionPayload",
+    "ApprovalValidationResult",
 ]

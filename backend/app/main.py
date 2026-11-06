@@ -20,8 +20,14 @@ from app.core.exceptions import (
     validation_exception_handler,
 )
 from app.core.logging import get_logger, setup_logging
+from app.models.approval import (
+    ApprovalActionPayload,
+    ApprovalRequest,
+    ApprovalValidationResult,
+)
 from app.models.health import HealthResponse
 from app.models.investigation import InvestigationReport, InvestigationRequest
+from app.services.approval_manager import approval_manager
 from app.services.investigation_engine import BugInvestigationEngine
 
 logger = get_logger("main")
@@ -129,6 +135,38 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
         """
         report = engine.investigate(request)
         return Response(content=report.to_formatted_report(), media_type="text/plain")
+
+    # -----------------------------------------------------------------------
+    # Human Approval Workflow Endpoints
+    # -----------------------------------------------------------------------
+    @app.post(
+        "/api/v1/approvals/decide",
+        response_model=ApprovalValidationResult,
+        summary="Process Approval Decision",
+        tags=["Approval"],
+    )
+    async def process_approval_decision(
+        payload: ApprovalActionPayload,
+    ) -> ApprovalValidationResult:
+        """
+        Validates developer approval or rejection action.
+        Only grants execution token if authorized user submits valid command.
+        """
+        return approval_manager.process_action(payload)
+
+    @app.get(
+        "/api/v1/approvals/{issue_id}",
+        response_model=ApprovalRequest,
+        summary="Get Approval Request Status",
+        tags=["Approval"],
+    )
+    async def get_approval_status(issue_id: str) -> ApprovalRequest:
+        """Retrieves persistent approval status for an issue."""
+        req = approval_manager.get_request(issue_id)
+        if not req:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail=f"No approval request for issue '{issue_id}'.")
+        return req
 
     return app
 
