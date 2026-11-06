@@ -242,17 +242,27 @@ git commit -m "Phase 01: sample FastAPI login app — green test baseline (7/7)"
 
 ---
 
-## Phase 05 — Bug Demonstrations (~3 hours)
+## Phase 05 — CONTROLLED CODE FIXING AND TEST EXECUTION (Status: COMPLETE ✅)
 
-**Goal**: Run all five bug scenarios through DevFlow. Document results.
+**Goal**: Allow DevFlow to implement approved bug fixes on isolated branches and validate them using controlled automated tests.
 
-Each bug cycle:
-1. Inject bug (manual edit to sample_app).
-2. Confirm tests fail (`pytest` locally).
-3. Post bug report to Mattermost.
-4. DevFlow: investigate → propose → approve → fix → test → report.
-5. Confirm tests pass (7/7).
-6. Screenshot the Mattermost conversation for the demo.
+- [x] **Execution Domain Models (`backend/app/models/execution.py`)**: `ExecutionStatus` enum, `FixPatch`, `FixPlan`, and `ExecutionReport` with `.to_formatted_report()`.
+- [x] **Git Workflow & Branch Isolation (`backend/app/services/git_workflow.py`)**: Pre-check for uncommitted developer changes, branch isolation (`devflow/fix-<issue>-<timestamp>`), workspace path validation, unified diff generation, and safe in-memory revert mechanism.
+- [x] **Controlled Command Test Runner (`backend/app/services/controlled_test_runner.py`)**: Strictly allowlisted `pytest` subprocess execution (`shell=False`), timeout guards, test counts parsing, failure diagnosis, and missing dependency detection.
+- [x] **Fix Executor Orchestrator (`backend/app/services/fix_executor.py`)**: Implemented the complete 10-step approved-bug-to-tested-fix workflow with single-use token consumption and automatic revert on test failures.
+- [x] **Workflow State Machine Integration (`backend/app/workflows/triage.py`)**: Added `IMPLEMENTING`, `TESTING`, and `EXECUTION_COMPLETE` states and `execute_fix` method.
+- [x] **Backend API Endpoints (`backend/app/main.py`)**: Exposed `POST /api/v1/fixes/execute` and `POST /api/v1/fixes/execute/formatted`.
+- [x] **Agent System Instructions (`AGENTS.md`)**: Configured Phase 05 execution rules and execution report schema.
+- [x] **All 8 Required Test Scenarios Verified (`tests/test_execution.py`)**:
+  - Scenario 1: Approved bug fix
+  - Scenario 2: Fix that passes tests (status SUCCESS)
+  - Scenario 3: Fix that fails tests (status FAILED_TESTS, safe revert verified)
+  - Scenario 4: Existing unrelated repository changes (status FAILED_DIRTY_REPO, developer work preserved)
+  - Scenario 5: Missing test dependencies (status FAILED_DEPENDENCY)
+  - Scenario 6: Test timeout (status FAILED_TIMEOUT)
+  - Scenario 7: Invalid approval (status FAILED_INVALID_APPROVAL)
+  - Scenario 8: Attempted modification of an unauthorized file (status FAILED_UNAUTHORIZED_FILE)
+- [x] **Documentation**: Created `docs/CONTROLLED_FIX_EXECUTION.md`.
 
 ---
 

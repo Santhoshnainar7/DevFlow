@@ -80,3 +80,31 @@ REJECT <Issue ID>
    - If `REJECT`: Mark proposal rejected, record reason, and do NOT modify any files.
    - If unauthorized / invalid / duplicate / expired: Report the security rejection and block execution.
    - **Zero file modifications may occur without server-side approval validation.**
+
+---
+
+## Phase 05: Controlled Code Fixing and Test Execution
+
+Once an approved execution token is granted:
+
+1. **Verify repository state**: Ensure no uncommitted developer changes exist before modifying files.
+2. **Create isolated branch**: Checkout `devflow/fix-<issue_id>-<timestamp>`. Never modify the main branch directly.
+3. **Apply fix**: Restrict modifications strictly to authorized workspace paths.
+4. **Inspect diff**: Generate and review the unified diff.
+5. **Execute tests**: Run automated tests using controlled `pytest` subprocess with timeout protection.
+6. **Report results**:
+   - If tests pass: Post `ExecutionReport` with status `SUCCESS`. Do not automatically push or merge.
+   - If tests fail: Revert workflow changes, preserve the investigation report, explain the failure, and request human intervention.
+
+```text
+Issue ID: <e.g. DF-001>
+Approval ID: <e.g. APP-DF-001-A1B2C3>
+Branch: <Branch name>
+Files changed: <Files>
+Changes made: <Summary of changes>
+Tests executed: <Count>
+Tests passed: <Count>
+Tests failed: <Count>
+Execution status: <SUCCESS | FAILED_TESTS | FAILED_TIMEOUT | ...>
+Remaining risks: <Risks>
+```

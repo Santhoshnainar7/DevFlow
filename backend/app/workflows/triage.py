@@ -16,15 +16,17 @@ from app.models.approval import (
     ApprovalRequest,
     ApprovalValidationResult,
 )
+from app.models.execution import ExecutionReport, ExecutionStatus, FixPlan
 from app.models.investigation import InvestigationReport, InvestigationRequest
 from app.services.approval_manager import ApprovalManager, approval_manager
+from app.services.fix_executor import FixExecutor
 from app.services.investigation_engine import BugInvestigationEngine
 
 logger = get_logger("workflow.triage")
 
 
 class TriageState(str, Enum):
-    """Linear progression states for bug triage, investigation, and approval."""
+    """Linear progression states for bug triage, investigation, approval, and execution."""
 
     IDLE = "IDLE"
     RECEIVED = "RECEIVED"
@@ -36,23 +38,29 @@ class TriageState(str, Enum):
     AWAITING_APPROVAL = "AWAITING_APPROVAL"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+    IMPLEMENTING = "IMPLEMENTING"
+    TESTING = "TESTING"
+    EXECUTION_COMPLETE = "EXECUTION_COMPLETE"
     CANCELLED = "CANCELLED"
     FAILED = "FAILED"
 
 
 class TriageWorkflow:
-    """Manages stateful triage and investigation workflows keyed by session/room."""
+    """Manages stateful triage, investigation, and controlled execution workflows keyed by session/room."""
 
     def __init__(
         self,
         engine: Optional[BugInvestigationEngine] = None,
         manager: Optional[ApprovalManager] = None,
+        executor: Optional[FixExecutor] = None,
     ):
         self.engine = engine or BugInvestigationEngine()
         self.manager = manager or approval_manager
+        self.executor = executor or FixExecutor(manager=self.manager)
         self._states: Dict[str, TriageState] = {}
         self._reports: Dict[str, InvestigationReport] = {}
         self._approval_requests: Dict[str, ApprovalRequest] = {}
+        self._execution_reports: Dict[str, ExecutionReport] = {}
 
     def get_state(self, session_id: str) -> TriageState:
         """Returns the current state for a given session."""
@@ -162,6 +170,40 @@ class TriageWorkflow:
 
         return result
 
+    def execute_fix(self, session_id: str, plan: FixPlan) -> ExecutionReport:
+        """
+        Executes an approved bug fix on an isolated branch and validates it with tests.
+        State transitions: APPROVED -> IMPLEMENTING -> TESTING -> EXECUTION_COMPLETE.
+        """
+        current = self.get_state(session_id)
+        if current != TriageState.APPROVED:
+            raise WorkflowStateError(
+                message=f"Cannot execute fix: Session '{session_id}' is in state '{current.value}', expected APPROVED.",
+                current_state=current.value,
+            )
+
+        try:
+            self._states[session_id] = TriageState.IMPLEMENTING
+            logger.info(f"[{session_id}] Workflow transitioned to {TriageState.IMPLEMENTING.value}")
+
+            self._states[session_id] = TriageState.TESTING
+            logger.info(f"[{session_id}] Workflow transitioned to {TriageState.TESTING.value}")
+
+            report = self.executor.execute_fix(plan)
+
+            self._states[session_id] = TriageState.EXECUTION_COMPLETE
+            self._execution_reports[session_id] = report
+            logger.info(
+                f"[{session_id}] Workflow transitioned to {TriageState.EXECUTION_COMPLETE.value} "
+                f"with status {report.execution_status.value}"
+            )
+            return report
+
+        except Exception as e:
+            self._states[session_id] = TriageState.FAILED
+            logger.error(f"[{session_id}] Fix execution failed: {e}")
+            raise
+
     def get_latest_report(self, session_id: str) -> Optional[InvestigationReport]:
         """Retrieves the latest generated report for a session."""
         return self._reports.get(session_id)
@@ -169,3 +211,7 @@ class TriageWorkflow:
     def get_approval_request(self, session_id: str) -> Optional[ApprovalRequest]:
         """Retrieves the active approval request for a session."""
         return self._approval_requests.get(session_id)
+
+    def get_execution_report(self, session_id: str) -> Optional[ExecutionReport]:
+        """Retrieves the latest execution report for a session."""
+        return self._execution_reports.get(session_id)

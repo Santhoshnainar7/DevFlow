@@ -25,9 +25,11 @@ from app.models.approval import (
     ApprovalRequest,
     ApprovalValidationResult,
 )
+from app.models.execution import ExecutionReport, FixPlan
 from app.models.health import HealthResponse
 from app.models.investigation import InvestigationReport, InvestigationRequest
 from app.services.approval_manager import approval_manager
+from app.services.fix_executor import FixExecutor
 from app.services.investigation_engine import BugInvestigationEngine
 
 logger = get_logger("main")
@@ -167,6 +169,40 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
             from fastapi import HTTPException
             raise HTTPException(status_code=404, detail=f"No approval request for issue '{issue_id}'.")
         return req
+
+    # -----------------------------------------------------------------------
+    # Controlled Code Fixing & Test Execution Endpoints
+    # -----------------------------------------------------------------------
+    executor = FixExecutor(
+        repo_path=settings.DEVFLOW_REPO_PATH,
+        manager=approval_manager,
+        test_timeout_seconds=settings.DEVFLOW_TEST_TIMEOUT_SECONDS,
+    )
+
+    @app.post(
+        "/api/v1/fixes/execute",
+        response_model=ExecutionReport,
+        summary="Execute Approved Fix",
+        tags=["Execution"],
+    )
+    async def execute_approved_fix(plan: FixPlan) -> ExecutionReport:
+        """
+        Applies an approved bug fix on an isolated branch and validates with tests.
+        Reverts changes if tests fail and blocks execution without valid approval token.
+        """
+        return executor.execute_fix(plan)
+
+    @app.post(
+        "/api/v1/fixes/execute/formatted",
+        summary="Execute Approved Fix (Formatted Text)",
+        tags=["Execution"],
+    )
+    async def execute_approved_fix_formatted(plan: FixPlan) -> Response:
+        """
+        Executes approved fix and returns report formatted for team chat.
+        """
+        report = executor.execute_fix(plan)
+        return Response(content=report.to_formatted_report(), media_type="text/plain")
 
     return app
 

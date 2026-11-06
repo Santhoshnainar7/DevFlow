@@ -6,6 +6,12 @@ from app.models.approval import (
     ApprovalRequest,
     ApprovalValidationResult,
 )
+from app.models.execution import (
+    ExecutionReport,
+    ExecutionStatus,
+    FixPatch,
+    FixPlan,
+)
 from app.models.health import ApiResponse, HealthResponse
 from app.models.investigation import (
     BugCategory,
@@ -31,4 +37,8 @@ __all__ = [
     "ApprovalRequest",
     "ApprovalActionPayload",
     "ApprovalValidationResult",
+    "ExecutionStatus",
+    "FixPatch",
+    "FixPlan",
+    "ExecutionReport",
 ]
