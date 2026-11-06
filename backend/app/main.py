@@ -21,6 +21,8 @@ from app.core.exceptions import (
 )
 from app.core.logging import get_logger, setup_logging
 from app.models.health import HealthResponse
+from app.models.investigation import InvestigationReport, InvestigationRequest
+from app.services.investigation_engine import BugInvestigationEngine
 
 logger = get_logger("main")
 
@@ -96,6 +98,37 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
             "status": "operational",
             "docs_url": "/docs",
         }
+
+    # -----------------------------------------------------------------------
+    # Bug Investigation Engine Endpoints
+    # -----------------------------------------------------------------------
+    engine = BugInvestigationEngine(default_repo_path=settings.DEVFLOW_REPO_PATH)
+
+    @app.post(
+        "/api/v1/investigate",
+        response_model=InvestigationReport,
+        summary="Investigate Bug",
+        tags=["Investigation"],
+    )
+    async def investigate_bug(request: InvestigationRequest) -> InvestigationReport:
+        """
+        Executes an automated, read-only bug investigation on the connected repository.
+        Returns the structured 11-field investigation report.
+        """
+        return engine.investigate(request)
+
+    @app.post(
+        "/api/v1/investigate/formatted",
+        summary="Investigate Bug (Formatted Text)",
+        tags=["Investigation"],
+    )
+    async def investigate_bug_formatted(request: InvestigationRequest) -> Response:
+        """
+        Executes bug investigation and returns the report in plain-text markdown format
+        matching the Switch chat requirements.
+        """
+        report = engine.investigate(request)
+        return Response(content=report.to_formatted_report(), media_type="text/plain")
 
     return app
 

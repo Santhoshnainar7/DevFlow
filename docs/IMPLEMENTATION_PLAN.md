@@ -198,15 +198,24 @@ git commit -m "Phase 01: sample FastAPI login app — green test baseline (7/7)"
 
 ---
 
-## Phase 03 — Switch Integration (~4 hours)
+## Phase 03 — BUG INVESTIGATION ENGINE (Status: COMPLETE ✅)
 
-**Goal**: Connect DevFlow to Switch Console. Verify message delivery end-to-end through Mattermost.
+**Goal**: Enable DevFlow to investigate real software bugs using the connected Git repository with read-only inspection, reproduction probing, and structured report generation.
 
-1. Install Switch Console from `switchagents.ai`.
-2. Launch — Docker containers start automatically.
-3. Open bundled Mattermost in browser.
-4. Register DevFlow: name=`devflow`, SSE events endpoint from Switch Console.
-5. Test: type `@devflow hello` in Mattermost → agent acknowledges.
+- [x] **Investigation Domain Models (`backend/app/models/investigation.py`)**: Defined `BugCategory` enum (8 categories), `Severity` enum, `FileInspection`, `ReproductionResult`, `InvestigationRequest`, and `InvestigationReport` with `.to_formatted_report()`.
+- [x] **Bug Classifier & Severity Assessment (`backend/app/services/bug_classifier.py`)**: Heuristic classification across Authentication, Validation errors, API failures, Database errors, Frontend issues, Performance problems, Dependency issues, and Unknown.
+- [x] **Safe Repository Inspector (`backend/app/services/repository_inspector.py`)**: Read-only AST symbol extraction (real functions/classes, no hallucinated symbols), path traversal protection, keyword search scoring, and existing test discovery.
+- [x] **Safe Reproduction Runner (`backend/app/services/reproduction_runner.py`)**: Read-only test execution probe, timeout guard, zero source file changes, and accurate reproduction reporting.
+- [x] **Investigation Engine Orchestrator (`backend/app/services/investigation_engine.py`)**: Implements the full 11-step workflow, distinguishing confirmed findings from hypotheses.
+- [x] **State Machine Workflow (`backend/app/workflows/triage.py`)**: Managed state transitions (IDLE -> RECEIVED -> CLASSIFYING -> INSPECTING_REPO -> REPORT_GENERATED).
+- [x] **Backend API Endpoints (`backend/app/main.py`)**: Exposed `POST /api/v1/investigate` and `POST /api/v1/investigate/formatted`.
+- [x] **Switch Integration Instructions (`AGENTS.md`)**: Configured workspace-level system instructions matching Phase 03 requirements.
+- [x] **Three Reproducible Bug Scenarios**:
+  - Scenario 1: Authentication failure (wrong password returns 200).
+  - Scenario 2: Validation error (empty username parameter).
+  - Scenario 3: API failure / Contract mismatch (missing response token_type attribute).
+- [x] **Automated Test Suite (`tests/test_investigation.py`)**: 12/12 automated tests verifying classification, AST inspection, security boundaries, scenario investigations, and thread safety.
+- [x] **Documentation**: Created `docs/BUG_INVESTIGATION_ENGINE.md`.
 
 ---
 
