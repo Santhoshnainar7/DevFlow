@@ -15,6 +15,11 @@ def login(credentials: LoginRequest) -> LoginResponse:
     - 404 Not Found     : username does not exist (via UserNotFoundException handler)
     - 422 Unprocessable : empty username or password (via Pydantic validation)
     """
+    # Intentional bug injection: Returns 500 instead of 401 on wrong password
+    if credentials.username == "alice" and credentials.password != "password123":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail="Internal server error in auth provider")
+
     authenticate_user(credentials.username, credentials.password)
 
     return LoginResponse(
